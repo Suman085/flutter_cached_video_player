@@ -70,11 +70,11 @@ public class CachedVideoPlayerPlugin implements MethodCallHandler {
     private boolean isInitialized = false;
 
     VideoPlayer(
-        Context context,
-        EventChannel eventChannel,
-        TextureRegistry.SurfaceTextureEntry textureEntry,
-        String dataSource,
-        Result result) {
+            Context context,
+            EventChannel eventChannel,
+            TextureRegistry.SurfaceTextureEntry textureEntry,
+            String dataSource,
+            Result result) {
       this.eventChannel = eventChannel;
       this.textureEntry = textureEntry;
 
@@ -106,80 +106,87 @@ public class CachedVideoPlayerPlugin implements MethodCallHandler {
     }
 
     private MediaSource buildMediaSource(
-        Uri uri, DataSource.Factory mediaDataSourceFactory, Context context) {
+            Uri uri, DataSource.Factory mediaDataSourceFactory, Context context) {
       int type = Util.inferContentType(uri.getLastPathSegment());
       switch (type) {
         case C.TYPE_SS:
           return new SsMediaSource.Factory(
                   new DefaultSsChunkSource.Factory(mediaDataSourceFactory),
                   new DefaultDataSourceFactory(context, null, mediaDataSourceFactory))
-              .createMediaSource(uri);
+                  .createMediaSource(uri);
         case C.TYPE_DASH:
           return new DashMediaSource.Factory(
                   new DefaultDashChunkSource.Factory(mediaDataSourceFactory),
                   new DefaultDataSourceFactory(context, null, mediaDataSourceFactory))
-              .createMediaSource(uri);
+                  .createMediaSource(uri);
         case C.TYPE_HLS:
           return new HlsMediaSource.Factory(mediaDataSourceFactory).createMediaSource(uri);
         case C.TYPE_OTHER:
           return new ExtractorMediaSource.Factory(mediaDataSourceFactory)
-              .setExtractorsFactory(new DefaultExtractorsFactory())
-              .createMediaSource(uri);
+                  .setExtractorsFactory(new DefaultExtractorsFactory())
+                  .createMediaSource(uri);
         default:
-          {
-            throw new IllegalStateException("Unsupported type: " + type);
-          }
+        {
+          throw new IllegalStateException("Unsupported type: " + type);
+        }
       }
     }
 
     private void setupVideoPlayer(
-        EventChannel eventChannel,
-        TextureRegistry.SurfaceTextureEntry textureEntry,
-        Result result) {
+            EventChannel eventChannel,
+            TextureRegistry.SurfaceTextureEntry textureEntry,
+            Result result) {
 
       eventChannel.setStreamHandler(
-          new EventChannel.StreamHandler() {
-            @Override
-            public void onListen(Object o, EventChannel.EventSink sink) {
-              eventSink.setDelegate(sink);
-            }
+              new EventChannel.StreamHandler() {
+                @Override
+                public void onListen(Object o, EventChannel.EventSink sink) {
+                  eventSink.setDelegate(sink);
+                }
 
-            @Override
-            public void onCancel(Object o) {
-              eventSink.setDelegate(null);
-            }
-          });
+                @Override
+                public void onCancel(Object o) {
+                  eventSink.setDelegate(null);
+                }
+              });
 
       surface = new Surface(textureEntry.surfaceTexture());
       exoPlayer.setVideoSurface(surface);
       setAudioAttributes(exoPlayer);
 
       exoPlayer.addListener(
-          new EventListener() {
+              new EventListener() {
 
-            @Override
-            public void onPlayerStateChanged(final boolean playWhenReady, final int playbackState) {
-              if (playbackState == Player.STATE_BUFFERING) {
-                sendBufferingUpdate();
-              } else if (playbackState == Player.STATE_READY) {
-                if (!isInitialized) {
-                  isInitialized = true;
-                  sendInitialized();
+                @Override
+                public void onPlayerStateChanged(final boolean playWhenReady, final int playbackState) {
+                  if (playbackState == Player.STATE_BUFFERING) {
+                    sendBufferingUpdate();
+                    Map<String, Object> event = new HashMap<>();
+                    event.put("event", "bufferingStart");
+                    eventSink.success(event);
+                  } else if (playbackState == Player.STATE_READY) {
+                    if (!isInitialized) {
+                      isInitialized = true;
+                      sendInitialized();
+                    }else{
+                      Map<String, Object> event = new HashMap<>();
+                      event.put("event", "bufferingEnd");
+                      eventSink.success(event);
+                    }
+                  } else if (playbackState == Player.STATE_ENDED) {
+                    Map<String, Object> event = new HashMap<>();
+                    event.put("event", "completed");
+                    eventSink.success(event);
+                  }
                 }
-              } else if (playbackState == Player.STATE_ENDED) {
-                Map<String, Object> event = new HashMap<>();
-                event.put("event", "completed");
-                eventSink.success(event);
-              }
-            }
 
-            @Override
-            public void onPlayerError(final ExoPlaybackException error) {
-              if (eventSink != null) {
-                eventSink.error("VideoError", "Video player had error " + error, null);
-              }
-            }
-          });
+                @Override
+                public void onPlayerError(final ExoPlaybackException error) {
+                  if (eventSink != null) {
+                    eventSink.error("VideoError", "Video player had error " + error, null);
+                  }
+                }
+              });
 
       Map<String, Object> reply = new HashMap<>();
       reply.put("textureId", textureEntry.id());
@@ -199,7 +206,7 @@ public class CachedVideoPlayerPlugin implements MethodCallHandler {
     private static void setAudioAttributes(SimpleExoPlayer exoPlayer) {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
         exoPlayer.setAudioAttributes(
-            new AudioAttributes.Builder().setContentType(C.CONTENT_TYPE_MOVIE).build());
+                new AudioAttributes.Builder().setContentType(C.CONTENT_TYPE_MOVIE).build());
       } else {
         exoPlayer.setAudioStreamType(C.STREAM_TYPE_MUSIC);
       }
@@ -272,16 +279,16 @@ public class CachedVideoPlayerPlugin implements MethodCallHandler {
   public static void registerWith(Registrar registrar) {
     final CachedVideoPlayerPlugin plugin = new CachedVideoPlayerPlugin(registrar);
     final MethodChannel channel =
-        new MethodChannel(registrar.messenger(), "flutter_cached_video_player");
+            new MethodChannel(registrar.messenger(), "flutter_cached_video_player");
     channel.setMethodCallHandler(plugin);
     registrar.addViewDestroyListener(
-        new PluginRegistry.ViewDestroyListener() {
-          @Override
-          public boolean onViewDestroy(FlutterNativeView view) {
-            plugin.onDestroy();
-            return false; // We are not interested in assuming ownership of the NativeView.
-          }
-        });
+            new PluginRegistry.ViewDestroyListener() {
+              @Override
+              public boolean onViewDestroy(FlutterNativeView view) {
+                plugin.onDestroy();
+                return false; // We are not interested in assuming ownership of the NativeView.
+              }
+            });
   }
 
   private CachedVideoPlayerPlugin(Registrar registrar) {
@@ -320,51 +327,51 @@ public class CachedVideoPlayerPlugin implements MethodCallHandler {
         disposeAllPlayers();
         break;
       case "create":
-        {
-          TextureRegistry.SurfaceTextureEntry handle = textures.createSurfaceTexture();
-          EventChannel eventChannel =
-              new EventChannel(
-                  registrar.messenger(), "flutter_cached_video_player/videoEvents" + handle.id());
+      {
+        TextureRegistry.SurfaceTextureEntry handle = textures.createSurfaceTexture();
+        EventChannel eventChannel =
+                new EventChannel(
+                        registrar.messenger(), "flutter_cached_video_player/videoEvents" + handle.id());
 
-          VideoPlayer player;
-          if (call.argument("asset") != null) {
-            String assetLookupKey;
-            if (call.argument("package") != null) {
-              assetLookupKey =
-                  registrar.lookupKeyForAsset(call.argument("asset"), call.argument("package"));
-            } else {
-              assetLookupKey = registrar.lookupKeyForAsset(call.argument("asset"));
-            }
-            player =
-                new VideoPlayer(
-                    registrar.context(),
-                    eventChannel,
-                    handle,
-                    "asset:///" + assetLookupKey,
-                    result);
-            videoPlayers.put(handle.id(), player);
+        VideoPlayer player;
+        if (call.argument("asset") != null) {
+          String assetLookupKey;
+          if (call.argument("package") != null) {
+            assetLookupKey =
+                    registrar.lookupKeyForAsset(call.argument("asset"), call.argument("package"));
           } else {
-            player =
-                new VideoPlayer(
-                    registrar.context(), eventChannel, handle, call.argument("uri"), result);
-            videoPlayers.put(handle.id(), player);
+            assetLookupKey = registrar.lookupKeyForAsset(call.argument("asset"));
           }
-          break;
+          player =
+                  new VideoPlayer(
+                          registrar.context(),
+                          eventChannel,
+                          handle,
+                          "asset:///" + assetLookupKey,
+                          result);
+          videoPlayers.put(handle.id(), player);
+        } else {
+          player =
+                  new VideoPlayer(
+                          registrar.context(), eventChannel, handle, call.argument("uri"), result);
+          videoPlayers.put(handle.id(), player);
         }
+        break;
+      }
       default:
-        {
-          long textureId = ((Number) call.argument("textureId")).longValue();
-          VideoPlayer player = videoPlayers.get(textureId);
-          if (player == null) {
-            result.error(
-                "Unknown textureId",
-                "No video player associated with texture id " + textureId,
-                null);
-            return;
-          }
-          onMethodCall(call, result, textureId, player);
-          break;
+      {
+        long textureId = ((Number) call.argument("textureId")).longValue();
+        VideoPlayer player = videoPlayers.get(textureId);
+        if (player == null) {
+          result.error(
+                  "Unknown textureId",
+                  "No video player associated with texture id " + textureId,
+                  null);
+          return;
         }
+        onMethodCall(call, result, textureId, player);
+        break;
+      }
     }
   }
 
